@@ -14,7 +14,14 @@ def broadcast(msg, sender=None):
     for client in clients:
         if client == sender:
             continue
-        client[0].send(msg.encode("utf-8"))
+        client.send(str.encode(msg))
+
+def handle_client_wrapper(conn, addr):
+    handle_client(conn, addr)
+    if conn in clients:
+        clients.remove(conn)
+    conn.close()
+    broadcast(f"{addr} has disconnected")
 
 def handle_client(conn, addr):
     print('Connected by', addr)
@@ -22,15 +29,18 @@ def handle_client(conn, addr):
         data = conn.recv(1024)
         if not data:
             break
-        code = auth.login(db, data.decode("utf-8").split(","))
+        opts = data.decode("utf-8").split(",")
+        code = auth.login(db, opts) 
         conn.send(code.to_bytes(3))
         if code == 200 or code == 201:
             print((conn, addr))
-            clients.append((conn, addr))
-            broadcast(f"{addr} has joined the chat")
+            clients.append(conn)
+            broadcast(f"{opts[1]} has joined the chat")
             while True:
                 data = conn.recv(1024)
-                broadcast(data.decode("utf-8"), (conn, addr))
+                if not data:
+                    break
+                broadcast(opts[1] + " > " + data.decode("utf-8"), conn)
         else:
             conn.close()
             break
@@ -41,12 +51,14 @@ try:
         while True:
             s.listen()
             conn, addr = s.accept()
-            client_thread = threading.Thread(target=handle_client, args=(conn, addr))
+            client_thread = threading.Thread(target=handle_client_wrapper, args=(conn, addr))
             client_thread.start()
+
 except KeyboardInterrupt:
     print("Server shutting down")
     for client in clients:
-        client[0].close()
+        client.close()
     s.close()
+    print("Server shut down")
     exit(0)
 

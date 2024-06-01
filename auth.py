@@ -17,4 +17,3 @@ def login(db, opts):
         cursor.execute(register_query, [opts[1], opts[2]])
         db.commit()
         return 201
-
